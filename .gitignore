@@ -1,0 +1,6 @@
+*.txt
+*.spec
+*.exe
+echd_portal_6/
+build/
+dist/
