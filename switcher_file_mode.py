@@ -10,24 +10,6 @@ class switcher_service():
 
 
     def __init__(self) -> None:
-        pass
-
-    def switch_mode(self) -> bool:
-        args = self.setup()        
-
-        if args.Value == 'all':
-            paths = self.find_required_files(args.Paths)
-            print(paths)
-            for path in paths:
-                self.changes_in_file(args, path)
-            return True
-
-        if args.Value == 'one':
-            path = args.Path
-            self.changes_in_file(args, path)
-            return True
-    
-    def setup(self):
         parser = argparse.ArgumentParser()
         parser.add_argument('--Mode', choices = ['N', 'G', 'O'], 
                             help = 'N - номер группы, G - название группы, O - свой вариант, при этом варианте нужно ввести наименование группы в other')
@@ -36,18 +18,29 @@ class switcher_service():
         parser.add_argument('--Path')
         parser.add_argument('--Paths')
         parser.add_argument('--Other')
-        args = parser.parse_args()
-        return args
+        self.args = parser.parse_args()
+
+    def switch_mode(self) -> bool:
+        if self.args.Value == 'all':
+            paths = self.find_required_files()
+            for path in paths:
+                self.changes_in_file(path)
+            return True
+
+        if self.args.Value == 'one':
+            path = self.args.Path
+            self.changes_in_file(path)
+            return True
     
-    def find_required_files(self, path_to_directory : str) -> list:
+    def find_required_files(self) -> list:
         list_names_directories = list()
         list_files_directories = list()
         pattern = "test_*.py"
 
-        if os.path.exists(path_to_directory) == False:
+        if os.path.exists(self.args.Paths) == False:
             sys.exit()
         
-        for names_directories in os.walk(path_to_directory):
+        for names_directories in os.walk(self.args.Paths):
             if names_directories[0].find("__pycache__") != -1:
                 continue
             list_names_directories.append(names_directories[0])
@@ -59,10 +52,8 @@ class switcher_service():
 
         return list_files_directories
 
-    def changes_in_file(self, args, path = None):
+    def changes_in_file(self, path = None):
         detector = UniversalDetector()
-        number = ''
-        group = ''
 
         with open(path, "rb") as file:
             for line in file:
@@ -74,27 +65,23 @@ class switcher_service():
             data = file.readlines()
 
         with open(path, 'w', encoding = detector.result['encoding']) as file:
+            change = self.args.Other
+            if self.args.Other == None:
+                change = ''
+            latch = False
             for line in data:
-                other = args.Other
-                if args.Other == None:
-                    other = ''
-                if args.Mode == 'N':
-                    if line.find("@decorators.workItemIds") != -1:
-                        index = line.find("(")
-                        number = line[index + 1:-2]
-                        other = ''
-                if args.Mode == 'G':     
-                    if line.find("@decorators.suite") != -1:
-                        index = line.rfind(":")
-                        group = line[index + 1:-3]    
-                        other = ''
-                    if group == '':
-                        group = "CommonGroup" 
-                if line.find('@pytest.mark.xdist_group') != -1:
-                    index = line.find("=")
-                    result = line[0:index + 1] + '"' +  group + number + other + '"' + ')' + '\n'
-                    file.write(result)
-                    continue
+                if latch == False:
+                    if self.args.Mode == 'N':
+                        if not line.find("@decorators.workItemIds"):
+                            change = line[line.find("(") + 1:-2]
+                    if self.args.Mode == 'G':     
+                        if not line.find("@decorators.suite"):
+                            change = line[line.rfind(":") + 1:-3]    
+                        if change == '':
+                            change = "CommonGroup" 
+                if not line.find('@pytest.mark.xdist_group'):
+                    line = line[0:line.find("=") + 1] + '"' +  change + '"' + ')' + '\n'
+                    latch = True
                 file.write(line)
 
                     
